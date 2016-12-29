@@ -2,3 +2,5 @@
 
 *.pyc
 .idea/
+
+cdo_api_client/*.csv

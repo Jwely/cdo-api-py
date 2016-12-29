@@ -1,0 +1,5 @@
+# Include the license file
+include LICENSE.txt
+
+# Include the module
+recursive-include cdo_api_client *
