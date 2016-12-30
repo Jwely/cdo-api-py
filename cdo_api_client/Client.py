@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from time import sleep
 import requests
+import warnings
 
 from cdo_api_client.conf import API_HOST_URL, API_VERSION, DATETIME_FMT, ENDPOINTS
 from cdo_api_client.util import segement_daterange
@@ -9,18 +10,19 @@ from cdo_api_client.exceptions import *
 
 
 class BaseClient(object):
-    def __init__(self, token):
+    def __init__(self, token, backup_token=None, verify_token=False):
         self.token = token
-        self._current_token = 0
+        self.backup_token = backup_token
         self.headers = {'token': token,
                         'Content-Type': 'application/json;charset=UTF-8'}
         self.host = API_HOST_URL
         self.version = API_VERSION
         self.verbose = True
 
-        valid, response = self._test_auth()
-        if not valid:
-            raise AuthError(response.json()['message'])
+        if verify_token:
+            valid, response = self._test_auth()
+            if not valid:
+                raise AuthError(response.json()['message'])
 
     def _test_auth(self):
         r = self._get('datasets')
@@ -110,6 +112,14 @@ class Client(BaseClient):
         except RequestsPerSecondLimitExceeded:
             sleep(1)
             yield from self.get(endpoint, **kwargs)
+        except RequestsPerDayLimitExceeded:
+            if self.backup_token is not None:
+                print("Daily limit exceeded for primary token! Switching to backup token!")
+                self.token = self.backup_token
+                yield from self.get(endpoint, **kwargs)
+            else:
+                print("Try using a backup token next time!")
+                raise
 
     @staticmethod
     def squash_results(responses):
@@ -252,14 +262,18 @@ class Client(BaseClient):
 
         results = []
         for station in stations:
-            results += self.get_station_data(
-                datasetid=datasetid,
-                stationid=station['id'],
-                startdate=startdate,
-                enddate=enddate,
-                return_dataframe=False,
-                **data_filter_kwargs,
-                **kwargs)
+            try:
+                results += self.get_station_data(
+                    datasetid=datasetid,
+                    stationid=station['id'],
+                    startdate=startdate,
+                    enddate=enddate,
+                    return_dataframe=False,
+                    **data_filter_kwargs,
+                    **kwargs)
+            except RequestsPerDayLimitExceeded:
+                print("Operation aborted due to API request limits! Results are truncated!")
+                pass
 
         if return_dataframe:
             results_df = pd.DataFrame(results)
