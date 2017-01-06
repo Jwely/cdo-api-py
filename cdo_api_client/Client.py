@@ -124,6 +124,10 @@ class Client(BaseClient):
     @staticmethod
     def squash_results(responses):
         """ combines results from multiple responses into one list of results """
+
+        if not isinstance(responses, list):
+            responses = [responses]
+
         results = []
         for r in responses:
             r_json = r.json()
@@ -200,6 +204,14 @@ class Client(BaseClient):
             return pd.DataFrame(results)
         else:
             return results
+
+    def lookup_station(self, stationid):
+        """
+        look up station metadata by station id
+        :param stationid: known station id
+        """
+        response = self._get('stations', stationid)
+        return response.json()
 
     def get_station_data(self, datasetid=None, stationid=None, startdate=None, enddate=None,
                          return_dataframe=True, **kwargs):
