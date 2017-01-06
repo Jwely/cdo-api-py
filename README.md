@@ -18,9 +18,9 @@ pip3 install cdo-api-client
 ```
 
 * Read more [here](https://www.ncdc.noaa.gov/cdo-web/webservices/v2#gettingStarted)
-* Example usage [here](docs/example/dc_weather_data.py)
 
 
+## Example Use
 ``` python
 from cdo_api_client import Client
 
