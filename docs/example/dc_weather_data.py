@@ -7,7 +7,6 @@ from pprint import pprint
 
 # initialize a client with a developer token ,
 # note 5 calls per second and 1000 calls per day limit for each token
-#token = "CsaiyXFHjVaArkPKeIImLaUVLAcycjzN"
 token = "my_token_here"
 my_client = Client(token, default_units='metric')
 # the other valid option for units is 'standard'
