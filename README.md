@@ -21,7 +21,7 @@ pip3 install cdo-api-py
 
 
 ## Example Use
-see the examples in docs at [docs/example/dc_weather_data.py]
+see the [examples in docs](docs/example/dc_weather_data.py)
 
 
 ## TODO:
