@@ -305,6 +305,7 @@ class Client(BaseClient):
 
             max_range = timedelta(days=DATASET_MAX_RANGES[datasetid])
             for start, end in self._segement_daterange(startdate, enddate, max_range):
+                # assemble new kwargs by modifying dates and adding user kwargs
                 get_args = dict(
                     datasetid=datasetid,
                     startdate=start.strftime(DATETIME_FMT_SHORT),
@@ -312,7 +313,13 @@ class Client(BaseClient):
                     **kwargs)
                 yield from self._get_with_request_checks(endpoint, *args, **get_args)
         else:
-            yield from self._get_with_request_checks(endpoint, *args, **kwargs)
+            # combine the defined kwargs with the undefined ones
+            get_args = dict(
+                datasetid=datasetid,
+                startdate=startdate,
+                enddate=enddate,
+                **kwargs)
+            yield from self._get_with_request_checks(endpoint, *args, **get_args)
 
     # ===== Data fetchers and formaters
 
