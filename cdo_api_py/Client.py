@@ -4,9 +4,9 @@ from time import sleep
 import requests
 import warnings
 
-from cdo_api_client.conf import API_HOST_URL, API_VERSION, DATETIME_FMT, ENDPOINTS
-from cdo_api_client.util import segement_daterange
-from cdo_api_client.exceptions import *
+from cdo_api_py.conf import API_HOST_URL, API_VERSION, DATETIME_FMT, ENDPOINTS
+from cdo_api_py.util import segement_daterange
+from cdo_api_py.exceptions import *
 
 
 class BaseClient(object):

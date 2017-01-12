@@ -1,6 +1,6 @@
-[![PyPI version](https://badge.fury.io/py/cdo-api-client.svg)](https://badge.fury.io/py/cdo-api-client)
+[![PyPI version](https://badge.fury.io/py/cdo-api-py.svg)](https://badge.fury.io/py/cdo-api-py)
 
-# cdo-api-client
+# cdo-api-py
 Python interface to cdo api. Built to allow quick and easy query for weather
 data to pandas dataframe objects.
 
@@ -10,11 +10,11 @@ Notes:
 
 
 ```
-pip install cdo-api-client
+pip install cdo-api-py
 ```
 or for python3
 ```
-pip3 install cdo-api-client
+pip3 install cdo-api-py
 ```
 
 * Read more [here](https://www.ncdc.noaa.gov/cdo-web/webservices/v2#gettingStarted)

@@ -17,18 +17,18 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='cdo-api-client',
+    name='cdo-api-py',
 
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.0.0.dev4',
+    version='1.0.0.dev5',
 
     description='Python interface to the climate data online api',
     long_description=long_description,
 
     # The project's main homepage.
-    url='https://github.com/Jwely/cdo-api-client',
+    url='https://github.com/Jwely/cdo-api-py',
 
     # Author details
     author='Jwely',

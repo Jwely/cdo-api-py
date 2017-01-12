@@ -3,4 +3,4 @@
 *.pyc
 .idea/
 
-cdo_api_client/*.csv
+cdo_api_py/*.csv

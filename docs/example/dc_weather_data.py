@@ -1,4 +1,4 @@
-from cdo_api_client import Client
+from cdo_api_py import Client
 
 import pandas as pd
 from datetime import datetime

@@ -2,6 +2,6 @@
 twine upload dist/*
 rm -rf build
 rm -rf dist
-rm -rf cdo_api_client.egg-info
-sudo pip3 install --upgrade cdo-api-client
-sudo pip install --upgrade cdo-api-client
+rm -rf cdo_api_py.egg-info
+sudo pip3 install --upgrade cdo-api-py
+sudo pip install --upgrade cdo-api-py
