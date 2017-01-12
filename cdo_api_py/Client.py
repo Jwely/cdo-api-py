@@ -2,14 +2,18 @@ from datetime import datetime, timedelta
 import pandas as pd
 from time import sleep
 import requests
-import warnings
+from warnings import warn
 
-from cdo_api_py.conf import API_HOST_URL, API_VERSION, DATETIME_FMT, ENDPOINTS
-from cdo_api_py.util import segement_daterange
+from cdo_api_py.conf import API_HOST_URL, API_VERSION, DATETIME_FMT_SHORT, \
+    DATETIME_FMT_LONG, ENDPOINTS, DATASET_MAX_RANGES
 from cdo_api_py.exceptions import *
 
 
 class BaseClient(object):
+    """
+    The base client has only the most basic functions at the core of interfacing with the API
+    """
+
     def __init__(self, token, backup_token=None, verify_token=False):
         self.token = token
         self.backup_token = backup_token
@@ -18,6 +22,7 @@ class BaseClient(object):
         self.host = API_HOST_URL
         self.version = API_VERSION
         self.verbose = True
+        self.n_api_calls = 0
 
         if verify_token:
             valid, response = self._test_auth()
@@ -31,15 +36,112 @@ class BaseClient(object):
         return True, r
 
     @staticmethod
+    def _segement_daterange(start, end, maxdelta):
+        """
+        Segments a date range into shorter pieces with 'maxdelta' length.
+        :param start: starting datetime
+        :param end:  ending datetime
+        :param maxdelta: timedelta instance representing max time window
+        :return:
+        """
+        cur = start
+        while cur < end:
+            yield (cur, min(cur + maxdelta, end))
+            cur += maxdelta
+
+    @staticmethod
     def _validate_endpoint(endpoint):
         """ Compares endpoint against a list of valid endpoints """
         if endpoint in ENDPOINTS.keys():
             return True
         else:
             raise InvalidEndpoint("Endpoint '{}' is invalid! valid options are {}"
-                                  .format(endpoint, ENDPOINTS))
+                                  .format(endpoint, ENDPOINTS.keys()))
 
-    def _url(self, endpoint, *args, **kwargs):
+    @staticmethod
+    def _format_extent(extent):
+        """ if input extent looks like an extent dictionary, return extent formatted string """
+        if isinstance(extent, dict):
+            if all([d in extent.keys() for d in ['south', 'north', 'west', 'east']]):
+                string = "{}, {}, {}, {}".format(
+                    extent['south'],
+                    extent['west'],
+                    extent['north'],
+                    extent['east'])
+                return string
+            else:
+                raise BadExtentError(
+                    '{} does not appear to have all keys north, south, east, west'.format(extent)
+                )
+        elif isinstance(extent, str):
+            coords = [float(c) for c in extent.split(',')]
+            if len(coords) == 4:
+                return coords
+            else:
+                raise BadExtentError(
+                    'extent must contain the four n,s,e,w coordinates. got {}'.format(extent)
+                )
+        else:
+            raise BadExtentError(
+                'Could not interpret or verify extent input {}'.format(extent)
+            )
+
+    def _format_datetime_as_string(self, item):
+        """
+        Ensures datetime objects are formatted as acceptable strings. Uses
+        short format for datetimes with no hours minutes seconds. returns items which
+        are not either datetimes, or lists of datetimes, unaltered.
+        """
+        if isinstance(item, datetime):
+            if all([item.hour == 0, item.minute == 0, item.second == 0, item.microsecond == 0]):
+                return item.strftime(DATETIME_FMT_SHORT)
+            else:
+                return item.strftime(DATETIME_FMT_LONG)
+        elif isinstance(item, list):
+            return [self._format_datetime_as_string(sub_item) for sub_item in item]
+        else:
+            return item
+
+    def _parse_string_to_datetime(self, string, ignore_invalid=False):
+        """
+        parses a string and returns a datetime object. will work on either long or short formats
+
+        :param string: input string to be formated to datetime
+        :param ignore_invalid: set to True to simply return the string if it could not be converted.
+                               set to False to raise an error if a string cannot be converted.
+        """
+
+        def validate(string, format):
+            try:
+                return datetime.strptime(string, format)
+            except ValueError:
+                return False
+
+        if isinstance(string, str):
+            long = validate(string, DATETIME_FMT_LONG)
+            short = validate(string, DATETIME_FMT_SHORT)
+            if long:
+                return long
+            elif short:
+                return short
+            else:
+                if ignore_invalid:
+                    return string
+                else:
+                    raise InvalidDatestring(
+                        'input datestring "{}" does not match acceptable formats "{}" or "{}"'.format(
+                            DATETIME_FMT_LONG, DATETIME_FMT_SHORT
+                        ))
+
+        elif isinstance(string, list):
+            return [self._parse_string_to_datetime(s) for s in string]
+
+        elif isinstance(string, datetime):
+            return string
+        else:
+            raise TypeError("input {} is not of valid type to parse date string")
+
+    def _url_builder(self, endpoint, *args, **kwargs):
         """
         Formats an api call url from args and host info, passing None's is OK.
         keyword arguments can be anything supported by the endpoint.
@@ -49,7 +151,10 @@ class BaseClient(object):
         if kwargs:
             joins = []
             for k, v in kwargs.items():
-                if v is not None:
+                if v is not None:  # ignore none values from undefined kwargs
+                    v = self._format_datetime_as_string(v)  # ensure datetimes are formatted properly
+                    if k == 'extent':  # ensure formatting if an extent argument is passed
+                        v = self._format_extent(v)
                     if isinstance(v, list):  # handles multiple value arguments
                         joins += ["{}={}".format(k, vv) for vv in v]
                     else:
@@ -61,92 +166,36 @@ class BaseClient(object):
             print(url)
         return url
 
-    def _get(self, endpoint, *args, **kwargs):
-        """ Passes args to url assembler and sends get request to that url"""
-        self._validate_endpoint(endpoint)
-        r = requests.get(url=self._url(endpoint, *args, **kwargs), headers=self.headers)
+    def _get(self, url):
+        """ Sends a get request to the url with authentication token attached in the header """
+        r = requests.get(url=url, headers=self.headers)
+        self.n_api_calls += 1
         if r.status_code == 429:
             message = r.json()['message']
             if "per second" in message:
                 raise RequestsPerSecondLimitExceeded(message)
             elif "per day" in message:
                 raise RequestsPerDayLimitExceeded(message)
+        elif r.status_code == 400:
+            raise Request400Error(r.json()['message'])
         return r
 
 
 class Client(BaseClient):
+    """
+    This client assists greatly with creating one or more requests to return
+    all relevant data to the user.
+    """
+
     def __init__(self, token, default_limit=1000, default_units='metric'):
         super(Client, self).__init__(token=token)
         self.default_limit = default_limit
         self.default_units = default_units
 
-    def get(self, endpoint, *args, **kwargs):
-        """
-        Manages '_get' requests. Keeps API calls to 5 per second and segments
-        requests when the responses are very long. Because multiple requests
-        may be required, this is a generator object that yields the responses.
-        """
-        if "limit" not in kwargs.keys():
-            kwargs['limit'] = self.default_limit
-        if "units" not in kwargs.keys():
-            kwargs['units'] = self.default_units
-
-        try:
-            response = self._get(endpoint, *args, **kwargs)
-            yield response
-
-            # if the response hits the limit, send more requests and yield responses
-            if response.status_code == 200:
-                resp_json = response.json()
-                if 'metadata' in resp_json.keys():
-                    meta = resp_json['metadata']['resultset']
-                    offset = 0
-                    limit = meta['limit']
-                    count = meta['count']
-                    while offset + limit < count:
-                        offset += limit
-                        kwargs['offset'] = offset
-                        kwargs['limit'] = limit
-                        yield self._get(endpoint, *args, **kwargs)
-
-        except RequestsPerSecondLimitExceeded:
-            sleep(1)
-            yield from self.get(endpoint, **kwargs)
-        except RequestsPerDayLimitExceeded:
-            if self.backup_token is not None:
-                print("Daily limit exceeded for primary token! Switching to backup token!")
-                self.token = self.backup_token
-                yield from self.get(endpoint, **kwargs)
-            else:
-                print("Try using a backup token next time!")
-                raise
+    # ====== endpoint list methods.
 
     @staticmethod
-    def squash_results(responses):
-        """ combines results from multiple responses into one list of results """
-
-        if not isinstance(responses, list):
-            responses = [responses]
-
-        results = []
-        for r in responses:
-            r_json = r.json()
-            if 'results' in r_json.keys():
-                results += r.json()['results']
-        return results
-
-    @staticmethod
-    def results_to_dataframe(results):
-        """ creates a pandas dataframe from a list of common results """
-        if len(results) > 0:
-            df = pd.DataFrame(results)
-            if len(df) > 0:  # pivot tables cant be formed on empty dataframes
-                df = df.pivot_table(values='value', index=['station', 'date'], columns='datatype')
-            return df
-        else:
-            return pd.DataFrame()
-
-    def list_endpoints(self):
+    def list_endpoints():
         return ENDPOINTS
 
     def list_datasets(self):
@@ -167,6 +216,129 @@ class Client(BaseClient):
     def list_stations(self):
         return self.squash_results(self.get('stations'))
 
+    # ====== Get request modifiers and checkers
+
+    def _get_with_url_builder(self, endpoint, *args, **kwargs):
+        """ Passes args to url assembler and sends get request to that url """
+        self._validate_endpoint(endpoint)
+        url = self._url_builder(endpoint, *args, **kwargs)
+        return self._get(url)
+
+    def _get_with_count_checks(self, endpoint, *args, **kwargs):
+        """
+        If the first response indicates the count is greater than the limit, it modifies
+        the offset argument and sends another request until all items have been obtained.
+        yields responses as they are obtained.
+
+        Invoked by '_get_with_request_checks', invokes '_get_with_url_builder'
+        """
+        response = self._get_with_url_builder(endpoint, *args, **kwargs)
+        yield response
+
+        # if the response hits the limit, send more requests and yield responses
+        if response.status_code == 200:
+            resp_json = response.json()
+            if 'metadata' in resp_json.keys():
+                meta = resp_json['metadata']['resultset']
+                offset = 0
+                limit = meta['limit']
+                count = meta['count']
+                while offset + limit < count:
+                    offset += limit
+                    kwargs['offset'] = offset
+                    kwargs['limit'] = limit
+                    yield self._get_with_url_builder(endpoint, *args, **kwargs)
+
+    def _get_with_request_checks(self, endpoint, *args, **kwargs):
+        """
+        Manages '_get' requests. Keeps API calls to 5 per second and segments
+        requests when the responses are very long. Because multiple requests
+        may be required, this is a generator object that yields the responses.
+
+        Invoked by 'get', invokes '_get_with_count_checks'
+        """
+
+        try:
+            yield from self._get_with_count_checks(endpoint, *args, **kwargs)
+
+        except RequestsPerSecondLimitExceeded:
+            sleep(1)
+            yield from self._get_with_request_checks(endpoint, *args, **kwargs)
+        except RequestsPerDayLimitExceeded:
+            if self.backup_token is not None:
+                warn("Daily limit exceeded for primary token! Switching to backup token!")
+                self.token = self.backup_token
+                yield from self.get(endpoint, **kwargs)
+            else:
+                print("Try using a backup token next time!")
+                raise
+
+    def get(self, endpoint, *args, datasetid=None, startdate=None, enddate=None, **kwargs):
+        """
+        Highest level get function that splits requests into many requests as required according to
+        the various API restrictions listed below. The getter then returns a generator object which will
+        have one or more response objects in it.
+
+        API call limit: the API accepts 5 calls per second, if an error is encountered due to reaching
+                        this limit, the get is delayed by 1 second and tried again.
+
+        Count limit:    the API response will include no more than 1000 items, but includes the total number
+                        of results in the response. This number is read, and if it is greater than the limit,
+                        a new request is automatically generated for the next 1000 items, continuously.
+
+        Date limit:     Most data products limit requests to span one year of time, others limit to a decade.
+                        The datasetid, startdate, and enddate arguments are checked for this criteria, and if they
+                        exceed the maximum date range, the request is broken up into smaller requests of allowable
+                        date range length.
+        """
+
+        if 'limit' not in kwargs.keys():
+            kwargs['limit'] = self.default_limit
+        if 'units' not in kwargs.keys():
+            kwargs['units'] = self.default_units
+
+        if endpoint == 'data':  # special date restrictions apply to data endpoint!
+            for arg in [datasetid, startdate, enddate]:
+                if arg is None:
+                    raise RequiredArgumentError(
+                        "Calls to 'data' endpoint require '{}' keyword argument!".format(arg))
+
+            max_range = timedelta(days=DATASET_MAX_RANGES[datasetid])
+            for start, end in self._segement_daterange(startdate, enddate, max_range):
+                get_args = dict(
+                    datasetid=datasetid,
+                    startdate=start.strftime(DATETIME_FMT_SHORT),
+                    enddate=end.strftime(DATETIME_FMT_SHORT),
+                    **kwargs)
+                yield from self._get_with_request_checks(endpoint, *args, **get_args)
+        else:
+            yield from self._get_with_request_checks(endpoint, *args, **kwargs)
+
+    # ===== Data fetchers and formaters
+
+    @staticmethod
+    def squash_results(responses):
+        """
+        Extracts the results from a list of respons objects and returns a list of just the results.
+        """
+        results = []
+        for r in responses:
+            r_json = r.json()
+            if 'results' in r_json.keys():
+                results += r.json()['results']
+        return results
+
+    @staticmethod
+    def results_to_dataframe(results):
+        """ creates a pandas dataframe from a list of common results"""
+        if len(results) > 0:
+            df = pd.DataFrame(results)
+            if len(df) > 0:  # pivot tables can't be formed on empty dataframes
+                df = df.pivot_table(values='value', index=['station', 'date'], columns='datatype')
+            return df
+        else:  # returns an empty dataframe
+            return pd.DataFrame()
+
     def find_stations(self, datasetid, extent, startdate=None, enddate=None,
                       return_dataframe=True, **kwargs):
         """
@@ -174,32 +346,20 @@ class Client(BaseClient):
 
         :param datasetid: one of the datasetids (see list_datasets())
         :param extent: dict with south, west, north and east keys. values in decimal degrees.
-        :param startdate: startdate argument to search for station data availability
-        :param enddate: enddate argument to search for station data availability
+        :param startdate: startdate argument (datetime)
+        :param enddate: enddate argument (datetime)
+        :param return_dataframe: set to True to return a pandas dataframe.
         :return:
         """
-        get_args = dict(
-            datasetid=datasetid,
-            extent="{}, {}, {}, {}".format(
-                extent['south'],
-                extent['west'],
-                extent['north'],
-                extent['east']),
-            **kwargs)
 
-        if startdate is not None:
-            if isinstance(startdate, datetime):
-                startdate = startdate.strftime(DATETIME_FMT)
-            if isinstance(startdate, str):
-                get_args['startdate'] = startdate
+        results = self.squash_results(
+            self.get('stations',
+                     datasetid=datasetid,
+                     extent=self._format_extent(extent),
+                     startdate=startdate,
+                     enddate=enddate,
+                     **kwargs))
 
-        if enddate is not None:
-            if isinstance(enddate, datetime):
-                enddate = enddate.strftime(DATETIME_FMT)
-            if isinstance(enddate, str):
-                get_args['enddate'] = enddate
-
-        results = self.squash_results(self.get('stations', **get_args))
         if return_dataframe:
             return pd.DataFrame(results)
         else:
@@ -210,88 +370,54 @@ class Client(BaseClient):
         look up station metadata by station id
         :param stationid: known station id
         """
-        response = self._get('stations', stationid)
+        # result squashing wont work for station lookups, different dictionary keys
+        response = list(self.get('stations', stationid))[0]
         return response.json()
 
-    def get_station_data(self, datasetid=None, stationid=None, startdate=None, enddate=None,
-                         return_dataframe=True, **kwargs):
+    def get_data_by_station(self, datasetid, stationid, startdate=None, enddate=None,
+                            return_dataframe=True, include_station_meta=False, **kwargs):
         """
-        Gets weather station data for given inputs.
+        Gets weather station data for given inputs. datasetid and stationid are the only required
+        inputs. startdate and enddate will be set to fetch all data available for that stationid if
+        left None.
+
         :param datasetid: required, see list_datasets() for options.
         :param stationid: required, station id. use find_stations() to help with this.
-        :param startdate: datetime object for startdate of data query window
-        :param enddate: datetime object for enddate of data query window
+        :param startdate: datetime object for startdate of data query window.
+        :param enddate: datetime object for enddate of data query window.
         :param return_dataframe: use True to return pandas dataframe of results
+        :param include_station_meta: Set True to include lat,lon,elevation of station in results.
+            Requires return_dataframe=True to be used.
         :param kwargs: optional keyword arguments for get() call.
-        :return: list of dicts with get results or pandas dataframe
+        :return: list of dicts with get results or pandas dataframe as per 'return_dataframe'
         """
 
-        for arg in ['datasetid', 'stationid', 'startdate', 'enddate']:
-            if arg is None:
-                raise RequiredArgumentError("{} is a required keyword argument!".format(arg))
+        # only lookup station metadata if it is needed to conserve API calls.
+        if startdate is None or enddate is None or include_station_meta:
+            station_meta = self.lookup_station(stationid)
 
-        responses = []
-        for start, end in segement_daterange(startdate, enddate, timedelta(days=365)):
-            get_args = dict(
+            if startdate is None:
+                startdate = self._parse_string_to_datetime(station_meta['mindate'])
+            if enddate is None:
+                enddate = self._parse_string_to_datetime(station_meta['maxdate'])
+
+        responses = list(
+            self.get(
+                'data',
                 datasetid=datasetid,
                 stationid=stationid,
-                startdate=start.strftime(DATETIME_FMT),
-                enddate=end.strftime(DATETIME_FMT),
-                **kwargs)
-
-            responses += list(self.get('data', **get_args))
+                startdate=startdate,
+                enddate=enddate,
+                **kwargs))
 
         results = self.squash_results(responses)
         if return_dataframe:
-            return self.results_to_dataframe(results)
+            data_df = self.results_to_dataframe(results).reset_index()
+            if include_station_meta:   # merge metadata into data_df
+                meta_df = pd.DataFrame(station_meta, index=[0])
+                data_df = pd.merge(data_df, meta_df, left_on='station', right_on='id')
+                del data_df['id']    # this is duplicated with 'station'
+            return data_df
         else:
             return results
 
-    def get_all_station_data(self, datasetid, extent, startdate=None, enddate=None,
-                             return_dataframe=True, station_search_kwargs={},
-                             data_filter_kwargs={}, **kwargs):
-        """
-        Returns all data from all available stations for given inputs
-
-        :param datasetid: required, see list_datasets() for options.
-        :param extent: dict with south, west, north and east keys. values in decimal degrees.
-        :param startdate: datetime object for startdate of data query window
-        :param enddate: datetime object for enddate of data query window
-        :param return_dataframe: use True to return pandas dataframe of results
-        :param station_search_kwargs: kwargs specifically for find_stations()
-        :param data_filter_kwargs: kwargs specifically for get_station_data()
-        :param kwargs: general kwargs to be passed to all function calls.
-        :return: list of dicts with get results or pandas dataframe
-        """
-        stations = self.find_stations(
-            datasetid=datasetid,
-            extent=extent,
-            startdate=startdate,
-            enddate=enddate,
-            return_dataframe=False,
-            **station_search_kwargs,
-            **kwargs)
-
-        results = []
-        for station in stations:
-            try:
-                results += self.get_station_data(
-                    datasetid=datasetid,
-                    stationid=station['id'],
-                    startdate=startdate,
-                    enddate=enddate,
-                    return_dataframe=False,
-                    **data_filter_kwargs,
-                    **kwargs)
-            except RequestsPerDayLimitExceeded:
-                print("Operation aborted due to API request limits! Results are truncated!")
-                pass
-
-        if return_dataframe:
-            results_df = pd.DataFrame(results)
-            if len(results_df) > 0:
-                results_df = results_df.pivot_table(
-                    values='value', index=['station', 'date'], columns='datatype')
-            return pd.DataFrame(stations), results_df
-        else:
-            return stations, results

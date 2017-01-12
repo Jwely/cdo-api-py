@@ -3,7 +3,15 @@ class AuthError(Exception):
     pass
 
 
+class BadExtentError(Exception):
+    pass
+
+
 class InvalidEndpoint(Exception):
+    pass
+
+
+class InvalidDatestring(Exception):
     pass
 
 
@@ -20,4 +28,8 @@ class RequestsPerSecondLimitExceeded(Request429Error):
 
 
 class RequestsPerDayLimitExceeded(Request429Error):
+    pass
+
+
+class Request400Error(Exception):
     pass

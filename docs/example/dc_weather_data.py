@@ -52,7 +52,7 @@ pprint(stations)
 
 # we can get big lists of station data with
 for station in stations:
-    station_data = my_client.get_station_data(
+    station_data = my_client.get_data_by_station(
         datasetid=datasetid,
         stationid=station['id'],
         startdate=startdate,
@@ -65,7 +65,7 @@ for station in stations:
 # a 'return_dataframe=True' keyword argument, and concatenate them together.
 big_df = pd.DataFrame()
 for station in stations:
-    station_df = my_client.get_station_data(
+    station_df = my_client.get_data_by_station(
         datasetid='GHCND',
         stationid=station['id'],
         startdate=startdate,
@@ -76,16 +76,3 @@ for station in stations:
 
 # and now we have one dataframe with all the stuff we want in it!
 print(big_df)
-
-# Finally, the laziest case combines all of these together into one main function
-# which gives us a dataframe of all stations used, as well as a dataframe
-# with all available data from those stations.
-stations, data = my_client.get_all_station_data(
-    datasetid=datasetid,
-    extent=extent,
-    startdate=startdate,
-    enddate=enddate,
-    return_dataframe=True,
-    datatypeid=['TMIN', 'TMAX'])
-print(stations)
-print(data)
