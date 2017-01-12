@@ -3,4 +3,8 @@
 *.pyc
 .idea/
 
+/build
+/cdo_api_py.egg-info
+/dist
+
 cdo_api_py/*.csv
