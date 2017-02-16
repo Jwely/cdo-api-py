@@ -436,5 +436,5 @@ class Client(BaseClient):
         if return_dataframe:
             return data_df
         else:
-            return data_df.to_dict('records')
+            return list(data_df.to_dict('index').values())
 
