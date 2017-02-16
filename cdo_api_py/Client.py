@@ -275,21 +275,29 @@ class Client(BaseClient):
 
     def get(self, endpoint, *args, datasetid=None, startdate=None, enddate=None, **kwargs):
         """
-        Highest level get function that splits requests into many requests as required according to
-        the various API restrictions listed below. The getter then returns a generator object which will
-        have one or more response objects in it.
+        Highest level get function that splits requests into many requests as required
+        according to the various API restrictions listed below. The getter then returns a
+        generator object which will have one or more response objects in it.
 
-        API call limit: the API accepts 5 calls per second, if an error is encountered due to reaching
-                        this limit, the get is delayed by 1 second and tried again.
+        API call limit: the API accepts 5 calls per second, if an error is encountered
+                        due to reaching this limit, the get is delayed by 1 second and tried
+                        again.
 
-        Count limit:    the API response will include no more than 1000 items, but includes the total number
-                        of results in the response. This number is read, and if it is greater than the limit,
-                        a new request is automatically generated for the next 1000 items, continuously.
+        Count limit:    the API response will include no more than 1000 items, but includes
+                        the total number of results in the response. This number is read,
+                        and if it is greater than the limit, a new request is automatically
+                        generated for the next 1000 items, continuously.
 
-        Date limit:     Most data products limit requests to span one year of time, others limit to a decade.
-                        The datasetid, startdate, and enddate arguments are checked for this criteria, and if they
-                        exceed the maximum date range, the request is broken up into smaller requests of allowable
+        Date limit:     Most data products limit requests to span one year of time, others
+                        limit to a decade. The datasetid, startdate, and enddate arguments
+                        are checked for this criteria, and if they exceed the maximum date
+                        range, the request is broken up into smaller requests of allowable
                         date range length.
+
+        :param datasetid: a valid datasetid from the options available. see list_datasets()
+        :param startdate: a datetime object bounding the minimum date to cover
+        :param enddate: a datetime object bounding the maximum date to cover
+        :param kwargs: any other keyword arguments accepted by the API.
         """
 
         if 'limit' not in kwargs.keys():
@@ -353,8 +361,8 @@ class Client(BaseClient):
 
         :param datasetid: one of the datasetids (see list_datasets())
         :param extent: dict with south, west, north and east keys. values in decimal degrees.
-        :param startdate: startdate argument (datetime)
-        :param enddate: enddate argument (datetime)
+        :param startdate: startdate api argument (datetime)
+        :param enddate: enddate api argument (datetime)
         :param return_dataframe: set to True to return a pandas dataframe.
         :return:
         """
@@ -394,7 +402,6 @@ class Client(BaseClient):
         :param enddate: datetime object for enddate of data query window.
         :param return_dataframe: use True to return pandas dataframe of results
         :param include_station_meta: Set True to include lat,lon,elevation of station in results.
-            Requires return_dataframe=True to be used.
         :param kwargs: optional keyword arguments for get() call.
         :return: list of dicts with get results or pandas dataframe as per 'return_dataframe'
         """
@@ -418,13 +425,16 @@ class Client(BaseClient):
                 **kwargs))
 
         results = self.squash_results(responses)
+
+        # return_dataframe or not, the best way to grapple this data is with a dataframe
+        data_df = self.results_to_dataframe(results).reset_index()
+        if include_station_meta:   # merge metadata into data_df
+            meta_df = pd.DataFrame(station_meta, index=[0])
+            data_df = pd.merge(data_df, meta_df, left_on='station', right_on='id')
+            del data_df['id']    # this is duplicated with 'station'
+
         if return_dataframe:
-            data_df = self.results_to_dataframe(results).reset_index()
-            if include_station_meta:   # merge metadata into data_df
-                meta_df = pd.DataFrame(station_meta, index=[0])
-                data_df = pd.merge(data_df, meta_df, left_on='station', right_on='id')
-                del data_df['id']    # this is duplicated with 'station'
             return data_df
         else:
-            return results
+            return data_df.to_dict('records')
 
