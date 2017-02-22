@@ -338,9 +338,12 @@ class Client(BaseClient):
         """
         results = []
         for r in responses:
-            r_json = r.json()
-            if 'results' in r_json.keys():
-                results += r.json()['results']
+            try:
+                r_json = r.json()
+                if 'results' in r_json.keys():
+                    results += r.json()['results']
+            except:
+                print("Warning: could not squash response: \n {}".format(r))
         return results
 
     @staticmethod
