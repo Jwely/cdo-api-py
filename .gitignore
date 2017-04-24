@@ -7,4 +7,4 @@
 /cdo_api_py.egg-info
 /dist
 
-cdo_api_py/*.csv
+docs/example/*csv

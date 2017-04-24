@@ -33,3 +33,9 @@ class RequestsPerDayLimitExceeded(Request429Error):
 
 class Request400Error(Exception):
     pass
+
+
+class Request502Error(Exception):
+    """ only seems to happen when making
+    many requests. server is just busy """
+    pass

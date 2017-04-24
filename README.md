@@ -1,13 +1,10 @@
 [![PyPI version](https://badge.fury.io/py/cdo-api-py.svg)](https://badge.fury.io/py/cdo-api-py)
 
 # cdo-api-py
-Python interface to cdo api. Built to allow quick and easy query for weather
-data to pandas dataframe objects.
+Python interface to cdo api, which is described in full detail [here](https://www.ncdc.noaa.gov/cdo-web/webservices/v2#gettingStarted)
+Built to allow quick and easy query for weather data to pandas dataframe objects.
 
 ## Installation
-Notes:
-
-
 
 ```
 pip install cdo-api-py
@@ -17,12 +14,119 @@ or for python3
 pip3 install cdo-api-py
 ```
 
-* Read more [here](https://www.ncdc.noaa.gov/cdo-web/webservices/v2#gettingStarted)
-
-
 ## Example Use
-see the [examples in docs](docs/example/dc_weather_data.py)
 
+To start, you'll need a token, which you can request [here](https://www.ncdc.noaa.gov/cdo-web/token).
+
+Import a few libraries and instantiate a client.
+```python
+from cdo_api_py import Client
+import pandas as pd
+from datetime import datetime
+from pprint import pprint
+token = "my_token_here"     # be sure not to share your token publicly
+my_client = Client(token, default_units='metric', default_limit=1000)
+```
+
+You can explore the endpoints available, either at the CDO documentation site or quickly with
+```python
+pprint(my_client.list_endpoints())
+```
+
+At the time of writing, there are about 11 available datasets, view them with
+```python
+pprint(my_client.list_datasets())
+```
+
+There are more than 1000 datatypes, but you can see them all with
+```python
+pprint(my_client.list_datatypes())
+```
+
+Once a client has been initialized, we can define a few variables to outline what we really want.
+Since this repo is just a python client to interface with the CDO api, the user has the option
+to use keyword arguments that are passed directly to the API and aren't detailed here, so you
+may need to browse the options available for the dataset of choice.
+
+The example we will use is the very common GHCN-Daily (ghcnd) weather set. We have found
+the north, south, east, and west lat/lon coordinates that describe the bounding box of the
+general Washington DC area. Next we define the dates we're interested in (optional) and
+the dataset id. As an added step, we really want specific values from the dataset so lets
+save those in a list as well as datatypeid (optional).
+
+```python
+extent = {
+    "north": 39.14,
+    "south": 38.68,
+    "east": -76.65,
+    "west": -77.35,
+}
+
+startdate = datetime(2016, 12, 1)
+enddate = datetime(2016, 12, 31)
+
+datasetid='GHCND'
+datatypeid=['TMIN', 'TMAX', 'PRCP']
+```
+
+Now we pass all these into a single function call to our client `my_client` to find stations of interest.
+We can use `return_dataframe=True` to automatically assemble the information into a dataframe.
+```python
+stations = my_client.find_stations(
+    datasetid=datasetid,
+    extent=extent,
+    startdate=startdate,
+    enddate=enddate,
+    datatypeid=datatypeid,
+    return_dataframe=True)
+pprint(stations)
+```
+
+Now that we have a list of stations that have data useful to us, we can iterate through
+the list of stations and pass the stationid argument to a `get_data_by_station` method.
+```python
+for rowid, station in stations.iterrows():  # remember this is a pandas dataframe!
+    station_data = my_client.get_data_by_station(
+        datasetid=datasetid,
+        stationid=station['id'],
+        startdate=startdate,
+        enddate=enddate,
+        return_dataframe=True,
+        include_station_meta=True   # flatten station metadata with ghcnd readings
+    )
+    pprint(station_data)
+```
+
+We can modify this slightly to concatenate all the small dataframes into one big dataframe
+and save it as a CSV.
+```python
+big_df = pd.DataFrame()
+for rowid, station in stations.iterrows():  # remember this is a pandas dataframe!
+    station_data = my_client.get_data_by_station(
+        datasetid=datasetid,
+        stationid=station['id'],
+        startdate=startdate,
+        enddate=enddate,
+        return_dataframe=True,
+        include_station_meta=True   # flatten station metadata with ghcnd readings
+    )
+    pprint(station_data)
+    big_df = pd.concat([big_df, station_data])
+
+print(big_df)
+big_df = big_df.sort_values(by='date').reset_index()
+big_df.to_csv('dc_ghcnd_example_output.csv')
+```
+
+It may take a bit of manual searching to familiarize yourself with the NOAA CDO offerings, but
+once you figure out the arguments you'd like to use, this client should make it quite easy
+to automate weather data retrievals. There are many requirements and limits as to the nature of
+requests that the server will allow, and this client will automatically determine if a request
+must be split up into multiple smaller pieces and create them, send them, and piece the
+results back together into a single coherent response without any additional effort.
+
+see all the example code here: [DC weather data example](docs/example/dc_weather_data.py)
 
 ## TODO:
-* review examples to ensure they are up to date.
+* Another example or two for non GHCND
+* Build a gh-pages branch with sphinx

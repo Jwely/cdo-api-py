@@ -178,6 +178,8 @@ class BaseClient(object):
                 raise RequestsPerDayLimitExceeded(message)
         elif r.status_code == 400:
             raise Request400Error(r.json()['message'])
+        elif r.status_code == 502:
+            raise Request502Error("502 bad gateway")
         return r
 
 
@@ -262,7 +264,7 @@ class Client(BaseClient):
             yield from self._get_with_count_checks(endpoint, *args, **kwargs)
 
         except RequestsPerSecondLimitExceeded:
-            sleep(1)
+            sleep(1.2)  # a little extra margine
             yield from self._get_with_request_checks(endpoint, *args, **kwargs)
         except RequestsPerDayLimitExceeded:
             if self.backup_token is not None:
@@ -272,6 +274,9 @@ class Client(BaseClient):
             else:
                 print("Try using a backup token next time!")
                 raise
+        # except Request502Error:
+        #     sleep(1)
+        #     yield from self._get_with_request_checks(endpoint, *args, **kwargs)
 
     def get(self, endpoint, *args, datasetid=None, startdate=None, enddate=None, **kwargs):
         """
