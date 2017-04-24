@@ -18,7 +18,7 @@ pip3 install cdo-api-py
 
 To start, you'll need a token, which you can request [here](https://www.ncdc.noaa.gov/cdo-web/token).
 
-Import a few libraries and instantiate a client.
+Import a few libraries and instantiate a client. default_units and default_limit are optional keyword arguments.
 ```python
 from cdo_api_py import Client
 import pandas as pd
