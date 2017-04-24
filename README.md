@@ -112,6 +112,7 @@ requests that the server will allow, and this client will automatically determin
 must be split up into multiple smaller pieces and create them, send them, and piece the
 results back together into a single coherent response without any additional effort.
 
+***
 
 You can explore the endpoints available, either at the CDO documentation site or quickly with
 ```python
