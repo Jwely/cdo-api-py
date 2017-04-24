@@ -31,9 +31,23 @@ my_client = Client(token, default_units='metric', default_limit=1000)
 You can explore the endpoints available, either at the CDO documentation site or quickly with
 ```python
 pprint(my_client.list_endpoints())
+
+# returned at time of writing
+{'data': 'A datum is an observed value along with any ancillary attributes at '
+         'a specific place and time.',
+ 'datacategories': 'A data category is a general type of data used to group '
+                   'similar data types.',
+ 'datasets': 'A dataset is the primary grouping for data at NCDC',
+ 'datatypes': 'A data type is a specific type of data that is often unique to '
+              'a dataset.',
+ 'locationcategories': 'A location category is a grouping of similar '
+                       'locations.',
+ 'locations': 'A location is a geopolitical entity.',
+ 'stations': 'A station is a any weather observing platform where data is '
+             'recorded.'}
 ```
 
-At the time of writing, there are about 11 available datasets, view them with
+At the time of writing, there are about 11 available datasets, they are `['GHCND', 'GSOM', 'GSOY', 'NEXRAD2', 'NEXRAD3', 'NORMAL_ANN', 'NORMAL_DLY', 'NORMAL_HLY', 'NORMAL_MLY', 'PRECIP_15', 'PRECIP_HLY']`. View the full details with:
 ```python
 pprint(my_client.list_datasets())
 ```
