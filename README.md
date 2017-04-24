@@ -28,35 +28,6 @@ token = "my_token_here"     # be sure not to share your token publicly
 my_client = Client(token, default_units='metric', default_limit=1000)
 ```
 
-You can explore the endpoints available, either at the CDO documentation site or quickly with
-```python
-pprint(my_client.list_endpoints())
-
-# returned at time of writing
-{'data': 'A datum is an observed value along with any ancillary attributes at '
-         'a specific place and time.',
- 'datacategories': 'A data category is a general type of data used to group '
-                   'similar data types.',
- 'datasets': 'A dataset is the primary grouping for data at NCDC',
- 'datatypes': 'A data type is a specific type of data that is often unique to '
-              'a dataset.',
- 'locationcategories': 'A location category is a grouping of similar '
-                       'locations.',
- 'locations': 'A location is a geopolitical entity.',
- 'stations': 'A station is a any weather observing platform where data is '
-             'recorded.'}
-```
-
-At the time of writing, there are about 11 available datasets, they are `['GHCND', 'GSOM', 'GSOY', 'NEXRAD2', 'NEXRAD3', 'NORMAL_ANN', 'NORMAL_DLY', 'NORMAL_HLY', 'NORMAL_MLY', 'PRECIP_15', 'PRECIP_HLY']`. View the full details with:
-```python
-pprint(my_client.list_datasets())
-```
-
-There are more than 1000 datatypes, but you can see them all with
-```python
-pprint(my_client.list_datatypes())
-```
-
 Once a client has been initialized, we can define a few variables to outline what we really want.
 Since this repo is just a python client to interface with the CDO api, the user has the option
 to use keyword arguments that are passed directly to the API and aren't detailed here, so you
@@ -132,6 +103,8 @@ big_df = big_df.sort_values(by='date').reset_index()
 big_df.to_csv('dc_ghcnd_example_output.csv')
 ```
 
+see all the example code here: [DC weather data example](docs/example/dc_weather_data.py)
+
 It may take a bit of manual searching to familiarize yourself with the NOAA CDO offerings, but
 once you figure out the arguments you'd like to use, this client should make it quite easy
 to automate weather data retrievals. There are many requirements and limits as to the nature of
@@ -139,7 +112,36 @@ requests that the server will allow, and this client will automatically determin
 must be split up into multiple smaller pieces and create them, send them, and piece the
 results back together into a single coherent response without any additional effort.
 
-see all the example code here: [DC weather data example](docs/example/dc_weather_data.py)
+
+You can explore the endpoints available, either at the CDO documentation site or quickly with
+```python
+pprint(my_client.list_endpoints())
+
+# returned at time of writing
+{'data': 'A datum is an observed value along with any ancillary attributes at '
+         'a specific place and time.',
+ 'datacategories': 'A data category is a general type of data used to group '
+                   'similar data types.',
+ 'datasets': 'A dataset is the primary grouping for data at NCDC',
+ 'datatypes': 'A data type is a specific type of data that is often unique to '
+              'a dataset.',
+ 'locationcategories': 'A location category is a grouping of similar '
+                       'locations.',
+ 'locations': 'A location is a geopolitical entity.',
+ 'stations': 'A station is a any weather observing platform where data is '
+             'recorded.'}
+```
+
+At the time of writing, there are about 11 available datasets, they are `['GHCND', 'GSOM', 'GSOY', 'NEXRAD2', 'NEXRAD3', 'NORMAL_ANN', 'NORMAL_DLY', 'NORMAL_HLY', 'NORMAL_MLY', 'PRECIP_15', 'PRECIP_HLY']`. View the full details with:
+```python
+pprint(my_client.list_datasets())
+```
+
+There are more than 1000 datatypes, but you can see them all with
+```python
+pprint(my_client.list_datatypes())
+```
+
 
 ## TODO:
 * Another example or two for non GHCND
