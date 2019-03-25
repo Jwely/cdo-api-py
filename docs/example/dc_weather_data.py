@@ -5,8 +5,8 @@ from pprint import pprint
 
 # initialize a client with a developer token ,
 # note 5 calls per second and 1000 calls per day limit for each token
-token = "my_token_here"
-my_client = Client(token, default_units='metric', default_limit=1000)
+token = "my token here!"
+my_client = Client(token, default_units=None, default_limit=1000)
 # the other valid option for units is 'standard', and default_limit maxes out at 1000
 
 # first lets see what endpoints are associated with the API
@@ -59,7 +59,7 @@ for rowid, station in stations.iterrows():  # remember this is a pandas datafram
         include_station_meta=True   # flatten station metadata with ghcnd readings
     )
     pprint(station_data)
-    big_df = pd.concat([big_df, station_data])
+    big_df = pd.concat([big_df, station_data], sort=False)
 
 # Now we can do whatever we want with our big dataframe. Lets sort it by date and save it
 print(big_df)

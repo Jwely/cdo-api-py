@@ -189,7 +189,7 @@ class Client(BaseClient):
     all relevant data to the user.
     """
 
-    def __init__(self, token, default_limit=1000, default_units='metric'):
+    def __init__(self, token, default_limit=1000, default_units=None):
         super(Client, self).__init__(token=token)
         self.default_limit = default_limit
         self.default_units = default_units
@@ -306,9 +306,11 @@ class Client(BaseClient):
         """
 
         if 'limit' not in kwargs.keys():
-            kwargs['limit'] = self.default_limit
+            if self.default_limit is not None:
+                kwargs['limit'] = self.default_limit
         if 'units' not in kwargs.keys():
-            kwargs['units'] = self.default_units
+            if self.default_units is not None:
+                kwargs['units'] = self.default_units
 
         if endpoint == 'data':  # special date restrictions apply to data endpoint!
             for arg in [datasetid, startdate, enddate]:
@@ -348,7 +350,7 @@ class Client(BaseClient):
                 if 'results' in r_json.keys():
                     results += r.json()['results']
             except:
-                print("Warning: could not squash response: \n {}".format(r))
+                print("Warning: could not squash response: \n {}, {}".format(r, r.content))
         return results
 
     @staticmethod
@@ -422,6 +424,8 @@ class Client(BaseClient):
                 startdate = self._parse_string_to_datetime(station_meta['mindate'])
             if enddate is None:
                 enddate = self._parse_string_to_datetime(station_meta['maxdate'])
+        else:
+            station_meta = None
 
         responses = list(
             self.get(
@@ -436,6 +440,7 @@ class Client(BaseClient):
 
         # return_dataframe or not, the best way to grapple this data is with a dataframe
         data_df = self.results_to_dataframe(results).reset_index()
+
         if include_station_meta:   # merge metadata into data_df
             meta_df = pd.DataFrame(station_meta, index=[0])
             data_df = pd.merge(data_df, meta_df, left_on='station', right_on='id')
