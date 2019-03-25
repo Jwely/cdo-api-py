@@ -25,7 +25,11 @@ import pandas as pd
 from datetime import datetime
 from pprint import pprint
 token = "my_token_here"     # be sure not to share your token publicly
-my_client = Client(token, default_units='metric', default_limit=1000)
+my_client = Client(token, default_units=None, default_limit=1000)
+
+# See issue #3, explicit use of the `units` argument returns <500>, this is a bug in the API.
+# when they've fixed the bug 'metric' or 'standard' should work as below:
+# my_client = Client(token, default_units='metric', default_limit=1000)
 ```
 
 Once a client has been initialized, we can define a few variables to outline what we really want.
