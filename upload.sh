@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
+sudo apt-get install twine
 twine upload dist/*
-rm -rf build
-rm -rf dist
-rm -rf cdo_api_py.egg-info
-sudo pip3 install --upgrade cdo-api-py
-sudo pip install --upgrade cdo-api-py
+sudo rm -rf build
+sudo rm -rf dist
+sudo rm -rf cdo_api_py.egg-info
+sudo -H pip3 install --upgrade cdo-api-py
