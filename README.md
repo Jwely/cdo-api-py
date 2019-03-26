@@ -6,8 +6,7 @@ Built to allow quick and easy query for weather data to pandas dataframe objects
 
 ## NOTICE
 In communication with the team maintaining the API this package points to, I've learned this service 
-is scheduled for deprication, though no announcement has been made. The new services are located [here]
-(https://www.ncei.noaa.gov/support/access-search#access-apis) and If no suitable python 
+is scheduled for deprication, though no announcement has been made. The new services are located [here](https://www.ncei.noaa.gov/support/access-search#access-apis) and If no suitable python 
 interface is available for this service I may write one myself time permitting.
 
 ## Installation
