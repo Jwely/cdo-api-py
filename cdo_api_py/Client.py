@@ -354,15 +354,19 @@ class Client(BaseClient):
         return results
 
     @staticmethod
-    def results_to_dataframe(results):
+    def results_to_dataframe(results, include_attributes=False):
         """ creates a pandas dataframe from a list of common results"""
         if len(results) > 0:
             df = pd.DataFrame(results)
             if len(df) > 0:  # pivot tables can't be formed on empty dataframes
-                df = df.pivot_table(values='value', index=['station', 'date'], columns='datatype')
-            return df
-        else:  # returns an empty dataframe
-            return pd.DataFrame()
+                if include_attributes is True:
+                    df = df.pivot_table(values=df.columns.drop(['datatype', 'date', 'station']), index=['station', 'date'], columns='datatype', aggfunc='first')
+                    df.columns = ["_".join(tuple(map(str, col))).rstrip("_") for col in df.columns.values]
+                    df = df.rename(columns=lambda x:x.replace("value_", ""))
+                else:
+                    df = df.pivot_table(values="value", index=['station', 'date'], columns='datatype')
+                return df
+        return pd.DataFrame()
 
     def find_stations(self, datasetid, extent, startdate=None, enddate=None,
                       return_dataframe=True, **kwargs):
@@ -400,7 +404,7 @@ class Client(BaseClient):
         return response.json()
 
     def get_data_by_station(self, datasetid, stationid, startdate=None, enddate=None,
-                            return_dataframe=True, include_station_meta=False, **kwargs):
+                            return_dataframe=True, include_station_meta=False, include_attributes=False, **kwargs):
         """
         Gets weather station data for given inputs. datasetid and stationid are the only required
         inputs. startdate and enddate will be set to fetch all data available for that stationid if
@@ -415,7 +419,6 @@ class Client(BaseClient):
         :param kwargs: optional keyword arguments for get() call.
         :return: list of dicts with get results or pandas dataframe as per 'return_dataframe'
         """
-
         # only lookup station metadata if it is needed to conserve API calls.
         if startdate is None or enddate is None or include_station_meta:
             station_meta = self.lookup_station(stationid)
@@ -439,7 +442,7 @@ class Client(BaseClient):
         results = self.squash_results(responses)
 
         # return_dataframe or not, the best way to grapple this data is with a dataframe
-        data_df = self.results_to_dataframe(results).reset_index()
+        data_df = self.results_to_dataframe(results, include_attributes=include_attributes).reset_index()
 
         if include_station_meta:   # merge metadata into data_df
             meta_df = pd.DataFrame(station_meta, index=[0])
